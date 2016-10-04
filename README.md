@@ -60,3 +60,6 @@ In the Vending Machine composition, we could regard the 0c Place as the start st
 
 ### Scenario of Vending Machine
 Suppose there is a customer who wants to buy a 20c snack bar. He comes to my Vending Machine and deposit 5c, 10c and 5c into the machine, and finally he is so happy with the delicious snack bar. How could we describe such a scenario use my PetriNet model?
+
+The red filled circle is the token and the red arrow is for the process of the scenario we mentioned above. Follow the arrows to move the token and take those specific Transitions with red bar. When the process comes back to the 0c place, the complete scenario will be done.
+![Alt text](https://github.com/TengyuMaVandy/mic-webgme/blob/master/readme-image/VendingMachine%20Composition%20Scenario.png?raw=true "VendingMachine Scenario")
