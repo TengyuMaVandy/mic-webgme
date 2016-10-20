@@ -4,9 +4,16 @@
       "PatriNets": {
         "src": "src/seeds/PatriNets"
       }
+    },
+    "plugins": {
+      "MiniProject2": {
+        "src": "src/plugins/MiniProject2",
+        "test": "test/plugins/MiniProject2"
+      }
     }
   },
   "dependencies": {
-    "seeds": {}
+    "seeds": {},
+    "plugins": {}
   }
 }
