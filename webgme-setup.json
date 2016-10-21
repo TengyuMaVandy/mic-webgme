@@ -9,6 +9,10 @@
       "MiniProject2": {
         "src": "src/plugins/MiniProject2",
         "test": "test/plugins/MiniProject2"
+      },
+      "TutorialPlugin": {
+        "src": "src/plugins/TutorialPlugin",
+        "test": "test/plugins/TutorialPlugin"
       }
     }
   },

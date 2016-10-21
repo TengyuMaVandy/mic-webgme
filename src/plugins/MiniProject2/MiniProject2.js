@@ -43,7 +43,7 @@ define([
     MiniProject2.prototype = Object.create(PluginBase.prototype);
     MiniProject2.prototype.constructor = MiniProject2;
 
-    /**
+    /**s
      * Main function for the plugin to execute. This will perform the execution.
      * Notes:
      * - Always log with the provided logger.[error,warning,info,debug].
@@ -69,22 +69,214 @@ define([
 
         nodeObject = self.activeNode;
 
-        self.core.setAttribute(nodeObject, 'name', 'My new obj');
-        self.core.setRegistry(nodeObject, 'position', {x: 70, y: 70});
+        // (1)
+        // self.core.setAttribute(nodeObject, 'name', 'My new obj');
+        // self.core.setRegistry(nodeObject, 'position', {x: 70, y: 70});
 
 
         // This will save the changes. If you don't want to save;
         // exclude self.save and call callback directly from this scope.
-        self.save('MiniProject2 updated model.')
-            .then(function () {
+        // self.save('MiniProject2 updated model.')
+        //     .then(function () {
+        //         self.result.setSuccess(true);
+        //         callback(null, self.result);
+        //     })
+        //     .catch(function (err) {
+        //         // Result success is false at invocation.
+        //         callback(err, self.result);
+        //     });
+
+        // (2)
+        self.metaNodeInfo = [];
+        self.metaNodes = [];
+        var artifact,
+            iter; // iteration number of getNodeInfo
+        self.loadNodeMap(self.rootNode)
+            .then(function (nodes) {
+                // self.printChildrenRec(self.rootNode, nodes);
+                // Here data has been added metaNodeInfo.
+                iter = 1;
+                self.getNodeInfo(self.rootNode, nodes, iter);
+                self.getMetaNodes(self.rootNode, nodes); //
+                var metaNodeInfoJson = JSON.stringify(self.metaNodeInfo, null, 4);
+                var metaNodesJson = JSON.stringify(self.metaNodes, null, 4); //
+                artifact = self.blobClient.createArtifact('project-data');
+                // artifact.addFile('metaNodeInfo.json', metaNodeInfoJson);
+                // artifact.addFile('metaNodes.json', metaNodesJson);
+                return artifact.addFiles({
+                    'metaNodeInfo.json': metaNodeInfoJson,
+                    'metaNodes.json': metaNodesJson
+                    });
+            })
+            .then(function (fileHash) {
+                self.result.addArtifact(fileHash);
+                return artifact.save()
+            })
+            .then(function (artifactHash) {
+                self.result.addArtifact(artifactHash);
                 self.result.setSuccess(true);
                 callback(null, self.result);
             })
             .catch(function (err) {
+                // (3)
+                self.logger.error(err.stack);
                 // Result success is false at invocation.
                 callback(err, self.result);
             });
+    };
 
+    MiniProject2.prototype.loadNodeMap = function (node) {
+        var self = this; 
+        return self.core.loadSubTree(node)
+           .then(function (nodeArr) {
+               var nodes = {},
+                   i;
+               for (i = 0; i < nodeArr.length; i += 1) {
+                   nodes[self.core.getPath(nodeArr[i])] = nodeArr[i];
+               }
+
+               return nodes;
+           });
+    };
+
+    MiniProject2.prototype.printRandomly = function (nodes) {
+        var self = this,
+            path,
+            name,
+            attr,
+            metaNode,
+            node;
+
+        for (path in nodes) {
+            node = nodes[path];
+            name = self.core.getAttribute(node, 'name');
+            if (self.isMetaTypeOf(node, self.META.Transition)) {
+                attr = self.core.getAttribute(node, 'guard');
+                self.logger.info(name, 'has event', attr);
+            } else {
+                if (self.core.getParent(node)) {
+                    metaNode = self.getMetaType(node);
+                    self.logger.info(name, 'is of meta-type', self.core.getAttribute(metaNode, 'name'));
+                } else {
+                    
+                }
+            }
+        }
+    };
+
+    MiniProject2.prototype.printChildrenRec = function (root, nodes, indent) {
+        var self = this,
+            childrenPaths,
+            childNode,
+            i;
+
+        indent = indent || '';
+
+        childrenPaths = self.core.getChildrenPaths(root);
+        self.logger.info(indent, self.core.getAttribute(root, 'name'), 'has', childrenPaths.length, 'children.');
+
+        for (i = 0; i < childrenPaths.length; i += 1) {
+            childNode = nodes[childrenPaths[i]];
+            self.printChildrenRec(childNode, nodes, indent + '  ');           
+        }
+        // if (root === self.getMetaType(root)) {
+        //     self.metaNodeInfo.push({name: <nameOfMetaNode>, path: <pathOfMetaNode>, numberOfChildren: <numberOfChildrenOfMetaNode>});
+        // }
+    };
+
+    MiniProject2.prototype.getNodeInfo = function (root, nodes, iter, indent) {
+        var self = this,
+            iter,
+            idOfMetaNode,
+            nameOfMetaNode,
+            isMeta,
+            metaType,
+            children = [],
+            childrenPaths,
+            childNode,
+            dstNode,
+            srcNode,
+            dstName,
+            srcName,
+            child={},
+            i;
+
+        indent = indent || '';
+
+        nameOfMetaNode = self.core.getAttribute(root, 'name');
+        idOfMetaNode = self.core.getRelid(root);
+        isMeta = self.core.isMetaNode(root);
+
+        childrenPaths = self.core.getChildrenPaths(root);
+        self.logger.info(indent, nameOfMetaNode, 'has', childrenPaths.length, 'children.');
+
+        for (i = 0; i < childrenPaths.length; i += 1) {
+            childNode = nodes[childrenPaths[i]];
+            children.push(self.getNodeInfo(childNode, nodes, iter + 1, indent + '  '));
+        }
+
+        if(iter == 1) {
+            child = ({name: nameOfMetaNode, children: children});
+            self.metaNodeInfo.push(child);
+        } 
+        else {
+            if(!isMeta) {
+                metaType = self.core.getAttribute(self.core.getBase(root), 'name');
+                if(self.core.isConnection(root)) {
+                    dstNode = self.core.getPointerPath(root, 'dst');
+                    dstName = self.core.getAttribute(nodes[dstNode], 'name');
+                    srcNode = self.core.getPointerPath(root, 'src');
+                    srcName = self.core.getAttribute(nodes[srcNode], 'name');
+                    child[idOfMetaNode] = ({name: nameOfMetaNode, isMeta: isMeta, metaType: metaType, src: srcName, dst: dstName});
+                } 
+                else {
+                    child[idOfMetaNode] = ({name: nameOfMetaNode, isMeta: isMeta, metaType: metaType, children: children});
+                }
+            } 
+            else {
+                metaType = nameOfMetaNode;
+                child[idOfMetaNode] = ({name: nameOfMetaNode, isMeta: isMeta, metaType: metaType, children: children});
+            }
+        }
+ 
+        return child;
+    };
+
+    MiniProject2.prototype.getMetaNodes = function (root, nodes) {
+        var self = this,
+            childrenPaths,
+            childNode,
+            nameOfMetaNode,
+            pathOfMetaNode,
+            isMeta,
+            baseNode,
+            baseName,
+            child,
+            i;
+
+        nameOfMetaNode = self.core.getAttribute(root, 'name');
+        pathOfMetaNode = self.core.getPath(root);
+        isMeta = self.core.isMetaNode(root);
+        childrenPaths = self.core.getChildrenPaths(root);
+
+        for (i = 0; i < childrenPaths.length; i += 1) {
+            childNode = nodes[childrenPaths[i]];
+            self.getMetaNodes(childNode, nodes);
+        }
+
+        if(isMeta){
+            baseNode = self.core.getPointerPath(root,'base');
+            if(baseNode) {
+                baseName = self.core.getAttribute(nodes[baseNode], 'name');
+            }
+            else {
+                baseName = "null";
+            }
+            child = ({name: nameOfMetaNode, path:pathOfMetaNode, nbrOfChildren:childrenPaths.length, base: baseName});
+            self.metaNodes.push(child);
+        }
+
+        return child;
     };
 
     return MiniProject2;
